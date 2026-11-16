@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Global hook dispatcher. Setting core.hooksPath makes git ignore each
+# repository's own .git/hooks directory. Symlink every hook name in
+# the global hooks directory to this file so that a repository-local
+# hook of the same name still runs. --git-common-dir is used because
+# --git-path hooks would resolve back to core.hooksPath.
+
+hook_name=$(basename "$0")
+common_dir=$(git rev-parse --git-common-dir 2>/dev/null) || exit 0
+local_hook="$common_dir/hooks/$hook_name"
+
+if [[ -x "$local_hook" ]]; then
+  exec "$local_hook" "$@"
+fi
+exit 0

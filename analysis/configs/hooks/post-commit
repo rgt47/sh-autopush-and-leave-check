@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# Push the current branch to its upstream after every commit.
+#
+# Only commits the user deliberately made are pushed; nothing is ever
+# staged on the user's behalf.
+#
+# Skips, without pushing:
+#   - GIT_AUTOPUSH=0 in the environment (one commit)
+#   - repositories with hooks.autopush = false
+#   - repositories with a root netlify.toml, unless hooks.autopush = true
+#   - detached HEAD, and branches with no upstream (never creates
+#     remote branches)
+#   - commits made mid-rebase, merge, cherry-pick, revert, or bisect
+#
+# The push runs in the background; outcomes are appended to a log.
+# Set GIT_AUTOPUSH_SYNC=1 to push in the foreground instead.
+
+# Run the repository-local post-commit hook first, if there is one.
+common_dir=$(git rev-parse --git-common-dir 2>/dev/null)
+if [[ -n "$common_dir" && -x "$common_dir/hooks/post-commit" ]]; then
+  "$common_dir/hooks/post-commit" "$@"
+fi
+
+[[ "${GIT_AUTOPUSH:-1}" == 0 ]] && exit 0
+autopush=$(git config --bool hooks.autopush)
+[[ "$autopush" == false ]] && exit 0
+
+# A push to a Netlify-backed repository deploys a live site.
+toplevel=$(git rev-parse --show-toplevel) || exit 0
+[[ -f "$toplevel/netlify.toml" && "$autopush" != true ]] && exit 0
+
+git_dir=$(git rev-parse --git-dir) || exit 0
+for marker in rebase-merge rebase-apply MERGE_HEAD CHERRY_PICK_HEAD \
+  REVERT_HEAD BISECT_LOG; do
+  [[ -e "$git_dir/$marker" ]] && exit 0
+done
+
+branch=$(git symbolic-ref -q --short HEAD) || exit 0
+remote=$(git config "branch.$branch.remote") || exit 0
+merge_ref=$(git config "branch.$branch.merge") || exit 0
+[[ "$remote" == . ]] && exit 0
+
+log_dir=${XDG_STATE_HOME:-$HOME/.local/state}
+log_file=${GIT_AUTOPUSH_LOG:-$log_dir/git-autopush.log}
+mkdir -p "$(dirname "$log_file")"
+
+do_push() {
+  local stamp out
+  stamp=$(date '+%Y-%m-%d %H:%M:%S')
+  # A temporary index from `git commit <paths>` must not leak into
+  # the push.
+  unset GIT_INDEX_FILE
+  if out=$(git push --quiet "$remote" "HEAD:$merge_ref" 2>&1); then
+    echo "$stamp OK   $toplevel $branch -> $remote/${merge_ref#refs/heads/}"
+  else
+    echo "$stamp FAIL $toplevel $branch -> $remote/${merge_ref#refs/heads/}"
+    echo "$out" | sed 's/^/    /'
+  fi >> "$log_file"
+}
+
+if [[ "${GIT_AUTOPUSH_SYNC:-0}" == 1 ]]; then
+  do_push
+else
+  do_push </dev/null >/dev/null 2>&1 &
+  disown
+fi
+exit 0
