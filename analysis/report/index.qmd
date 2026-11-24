@@ -6,7 +6,7 @@ categories: [git, zsh, shell-and-git, dotfiles]
 description: "An unattended 'git add -A && commit && push' backup sweep keeps remotes current but commits whatever happens to be on disk. This post replaces it with two smaller hooks: a global git post-commit hook that pushes only commits the user deliberately made, and a zsh hook that notices uncommitted work when the user leaves a repository and offers to commit tracked changes."
 image: "media/images/hero.jpg"
 document-type: "blog"
-draft: true
+draft: false
 execute:
   echo: true
   warning: false
@@ -494,6 +494,13 @@ a non-interactive shell, which stays silent; and `GIT_LEAVE_CHECK=0`.
    terminal. Check the log when a remote looks stale, or set
    `GIT_AUTOPUSH_SYNC=1` while diagnosing.
 
+   *Updated 2026-11-23: the hook now also raises a desktop
+   notification when a push is rejected because the local branch is
+   behind its upstream. It was added after a machine left idle for two
+   months was used for an hour in a clone dozens of commits behind.
+   Other failures still go only to the log, and nothing pulls
+   automatically, so an idle machine drifts until it is pulled.*
+
 2. **'Everything up-to-date' after a commit.** A manual `git push`
    right after committing usually reports nothing to do, because the
    background push has already finished. That message is correct, not
@@ -637,7 +644,7 @@ judgment over the final text are mine.
 
 ---
 
-*Rendered on 2026-11-11 at 16:19 PST.*<br>
+*Rendered on 2026-11-23 at 17:52 PST.*<br>
 *Source: ~/prj/web/ryyblog/posts/sh-autopush-and-leave-check/analysis/report/index.qmd*
 
 # Let's Connect
